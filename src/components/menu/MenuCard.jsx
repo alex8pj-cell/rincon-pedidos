@@ -6,42 +6,40 @@ export default function MenuCard({ item }) {
   const { addItem, cart } = useCart()
   const [modalOpen, setModalOpen] = useState(false)
 
-  // Total de unidades de este plato en el carrito (cualquier personalización)
-  const totalInCart = cart
-    .filter(i => i.id === item.id)
-    .reduce((s, i) => s + i.qty, 0)
-
-  function handleConfirm(item, note) {
-    addItem(item, note)
-  }
+  const totalInCart = cart.filter(i => i.id === item.id).reduce((s, i) => s + i.qty, 0)
 
   return (
     <>
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+      <div
+        className="card-hover bg-brand-dark rounded-2xl overflow-hidden flex flex-col cursor-pointer"
+        style={{ border: '1px solid rgba(255,184,0,0.2)' }}
+        onClick={() => setModalOpen(true)}
+      >
         {item.imageUrl ? (
           <img src={item.imageUrl} alt={item.name} className="w-full h-44 object-cover" />
         ) : (
-          <div className="w-full h-24 bg-amber-50 flex items-center justify-center text-4xl">🍽️</div>
+          <div className="w-full h-28 flex items-center justify-center text-5xl"
+               style={{ background: '#111' }}>🍽️</div>
         )}
 
         <div className="p-4 flex flex-col flex-1">
           <div className="flex justify-between items-start gap-2 mb-1 flex-1">
-            <h3 className="font-semibold text-gray-900 text-base leading-tight">{item.name}</h3>
-            <span className="text-amber-600 font-bold text-base whitespace-nowrap">
+            <h3 className="font-bold text-white text-sm leading-tight">{item.name}</h3>
+            <span className="text-brand-gold font-black text-sm whitespace-nowrap">
               ${item.price.toFixed(2)}
             </span>
           </div>
 
           {item.description && (
-            <p className="text-gray-500 text-sm mb-3 line-clamp-2">{item.description}</p>
+            <p className="text-white/50 text-xs mb-3 line-clamp-2">{item.description}</p>
           )}
 
           <button
-            onClick={() => setModalOpen(true)}
-            className={`mt-auto w-full py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+            onClick={e => { e.stopPropagation(); setModalOpen(true) }}
+            className={`mt-auto w-full py-2.5 rounded-xl text-sm font-black transition-all ${
               totalInCart > 0
-                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                : 'bg-amber-500 text-white hover:bg-amber-600'
+                ? 'bg-brand-red text-white shadow-[0_0_12px_rgba(232,0,28,0.4)]'
+                : 'bg-brand-gold text-black hover:shadow-[0_0_16px_rgba(255,184,0,0.5)]'
             }`}
           >
             {totalInCart > 0 ? `✓ En carrito (${totalInCart})` : '＋ Agregar'}
@@ -53,7 +51,7 @@ export default function MenuCard({ item }) {
         item={item}
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        onConfirm={handleConfirm}
+        onConfirm={(item, note) => addItem(item, note)}
       />
     </>
   )

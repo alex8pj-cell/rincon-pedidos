@@ -1,12 +1,32 @@
 @import "tailwindcss";
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@theme {
+  --color-brand-black:  #000000;
+  --color-brand-gold:   #FFB800;
+  --color-brand-red:    #E8001C;
+  --color-brand-dark:   #1a1a1a;
+  --color-brand-darker: #111111;
+  --color-brand-border: rgba(255,184,0,0.25);
 }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  background: #000;
+  color: #fff;
+}
+
+/* scrollbar invisible en filtros horizontales */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Brillo en hover de tarjetas */
+.card-hover {
+  transition: border-color .2s, box-shadow .2s;
+}
+.card-hover:hover {
+  border-color: rgba(255,184,0,0.6) !important;
+  box-shadow: 0 0 0 1px rgba(255,184,0,0.15), 0 4px 24px rgba(0,0,0,.6);
 }
