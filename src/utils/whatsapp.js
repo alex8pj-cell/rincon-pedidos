@@ -1,67 +1,81 @@
 const WA_NUMBER = '527731477760'
 
 const ORDER_TYPE_LABELS = {
-  domicilio:   '🚚 Domicilio',
-  recoger:     '🏃 Recoger en tienda',
+  domicilio:     '🚚 Domicilio',
+  recoger:       '🏃 Recoger en tienda',
   'para-llevar': '🥡 Para llevar',
-  mesa:        '🪑 En mesa',
+  mesa:          '🪑 En mesa',
 }
 
 const PAYMENT_LABELS = {
-  efectivo:       '💵 Efectivo',
-  tarjeta:        '💳 Tarjeta',
-  transferencia:  '📲 Transferencia',
+  efectivo:      '💵 Efectivo',
+  tarjeta:       '💳 Tarjeta',
+  transferencia: '📲 Transferencia',
+}
+
+function formatCustomizations(item) {
+  const parts = []
+  // Preset selections
+  if (item.selectedCustomizations) {
+    for (const [, val] of Object.entries(item.selectedCustomizations)) {
+      const opts = Array.isArray(val) ? val : [val]
+      parts.push(...opts.filter(Boolean))
+    }
+  }
+  // Free text note
+  if (item.note) parts.push(item.note)
+  return parts.length > 0 ? `\n      ✏️ ${parts.join(', ')}` : ''
 }
 
 /**
- * Construye el mensaje de WhatsApp y abre el enlace.
- * @param {Object} order - datos del pedido confirmado
+ * Builds the WhatsApp message and opens the deep link.
+ * @param {Object} order
  */
 export function openWhatsApp(order) {
   const {
     customerName, phone, items,
     orderType, zone, deliveryCost,
-    address, tableNumber,
+    address, mapUrl, tableNumber,
     paymentMethod, total, note,
   } = order
 
-  // ── Lista de productos ──────────────────────────────────────
+  // ── Product list ───────────────────────────────────────────
   const itemsList = items
     .map(i => {
-      const subtotal = `$${(i.price * i.qty).toFixed(2)}`
-      const customization = i.note ? `\n      ✏️ _${i.note}_` : ''
-      return `   • ${i.qty}x ${i.name} — ${subtotal}${customization}`
+      const sub = `$${(i.price * i.qty).toFixed(2)}`
+      return `   • ${i.qty}x ${i.name} — ${sub}${formatCustomizations(i)}`
     })
     .join('\n')
 
-  // ── Bloque de entrega ───────────────────────────────────────
+  // ── Delivery block ─────────────────────────────────────────
   let deliveryBlock = ''
   if (orderType === 'domicilio') {
     deliveryBlock =
-      `📍 *Zona:* ${zone.name}\n` +
+      `📍 *Zona:* ${zone?.name ?? '–'}\n` +
       `🏠 *Dirección:* ${address}\n` +
-      `🛵 *Costo de envío:* $${deliveryCost.toFixed(2)}\n`
+      (mapUrl ? `🗺️ *Mapa:* ${mapUrl}\n` : '') +
+      `🛵 *Costo de envío:* $${(deliveryCost ?? 0).toFixed(2)}\n`
   } else if (orderType === 'mesa') {
     deliveryBlock = `🪑 *Mesa:* ${tableNumber}\n`
   }
 
-  // ── Mensaje completo ────────────────────────────────────────
+  // ── Full message ───────────────────────────────────────────
   const lines = [
     `🍽️ *NUEVO PEDIDO — El Rincón de Las Delicias*`,
     ``,
     `👤 *Cliente:* ${customerName}`,
-    `📞 *Teléfono:* ${phone}`,
+    phone ? `📞 *Teléfono:* ${phone}` : null,
     ``,
     `🛒 *Productos:*`,
     itemsList,
     ``,
-    `📦 *Tipo de pedido:* ${ORDER_TYPE_LABELS[orderType]}`,
+    `📦 *Tipo de pedido:* ${ORDER_TYPE_LABELS[orderType] ?? orderType}`,
     deliveryBlock.trim() ? deliveryBlock.trim() : null,
     ``,
-    `💳 *Forma de pago:* ${PAYMENT_LABELS[paymentMethod]}`,
+    `💳 *Forma de pago:* ${PAYMENT_LABELS[paymentMethod] ?? paymentMethod}`,
     ``,
     orderType === 'domicilio'
-      ? `💰 *Subtotal:* $${(total - deliveryCost).toFixed(2)}\n🛵 *Envío:* $${deliveryCost.toFixed(2)}\n💵 *TOTAL: $${total.toFixed(2)}*`
+      ? `💰 *Subtotal:* $${(total - (deliveryCost ?? 0)).toFixed(2)}\n🛵 *Envío:* $${(deliveryCost ?? 0).toFixed(2)}\n💵 *TOTAL: $${total.toFixed(2)}*`
       : `💵 *TOTAL: $${total.toFixed(2)}*`,
     note ? `\n📝 *Nota:* ${note}` : null,
   ]

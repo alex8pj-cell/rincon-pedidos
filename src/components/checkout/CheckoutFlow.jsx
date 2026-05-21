@@ -1,72 +1,48 @@
 import { useState } from 'react'
 import { useCart } from '../../context/cartStore'
 import { useOrders } from '../../hooks/useOrders'
-import { DELIVERY_ZONES } from '../../data/deliveryZones'
+import { useRestaurantConfig } from '../../hooks/useRestaurantConfig'
 import { openWhatsApp } from '../../utils/whatsapp'
 
-const ORDER_TYPES = [
-  { key: 'domicilio',   label: 'Domicilio',   icon: '🚚', desc: 'Te lo llevamos a casa' },
-  { key: 'recoger',     label: 'Recoger',     icon: '🏃', desc: 'Pasas por tu pedido' },
-  { key: 'para-llevar', label: 'Para llevar', icon: '🥡', desc: 'Lo preparamos para llevar' },
-  { key: 'mesa',        label: 'En mesa',     icon: '🪑', desc: 'Pedido en el restaurante' },
-]
 const PAYMENT_METHODS = [
   { key: 'efectivo',      label: 'Efectivo',      icon: '💵', desc: 'Pago al recibir' },
   { key: 'tarjeta',       label: 'Tarjeta',       icon: '💳', desc: 'Débito o crédito' },
   { key: 'transferencia', label: 'Transferencia', icon: '📲', desc: 'SPEI / depósito' },
 ]
-const STEP_LABELS = ['Tipo', 'Detalles', 'Datos', 'Pago', 'Resumen']
 
-// ── Helpers de estilo ──────────────────────────────────────────────────────────
-const panel  = { background: '#111', border: '1px solid rgba(255,184,0,0.2)' }
-const input  = { background: '#1a1a1a', border: '1px solid rgba(255,184,0,0.25)', color: '#fff' }
-
-function DarkInput({ ...props }) {
-  return (
-    <input
-      {...props}
-      className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder-white/30
-                 focus:outline-none transition-all"
-      style={input}
-      onFocus={e => e.target.style.borderColor = '#FFB800'}
-      onBlur={e  => e.target.style.borderColor = 'rgba(255,184,0,0.25)'}
-    />
-  )
-}
-function DarkTextarea({ ...props }) {
-  return (
-    <textarea
-      {...props}
-      className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder-white/30
-                 focus:outline-none resize-none transition-all"
-      style={input}
-      onFocus={e => e.target.style.borderColor = '#FFB800'}
-      onBlur={e  => e.target.style.borderColor = 'rgba(255,184,0,0.25)'}
-    />
-  )
-}
-function SectionTitle({ children }) {
-  return <h3 className="text-base font-black text-white mb-3">{children}</h3>
-}
-
-// ── Pasos ──────────────────────────────────────────────────────────────────────
-
-function StepOrderType({ value, onChange }) {
+// ── Light-theme input helpers ─────────────────────────────────────────────────
+function LField({ label, required, children }) {
   return (
     <div>
-      <SectionTitle>¿Cómo quieres tu pedido?</SectionTitle>
+      <label className="block text-sm font-bold text-[#111111] mb-1.5">
+        {label}
+        {required && <span className="text-[#E8001C] ml-1">*</span>}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+// ── Step: Tipo de pedido (shown BEFORE the menu normally, but here as step 0) ─
+function StepOrderType({ orderTypes, value, onChange }) {
+  return (
+    <div>
+      <h3 className="text-base font-bold text-[#111111] mb-4">¿Cómo quieres tu pedido?</h3>
       <div className="grid grid-cols-2 gap-3">
-        {ORDER_TYPES.map(t => (
-          <button key={t.key} onClick={() => onChange(t.key)}
-            className="flex flex-col items-center gap-1.5 py-4 px-3 rounded-2xl transition-all"
-            style={value === t.key
-              ? { background: 'rgba(255,184,0,0.12)', border: '2px solid #FFB800', boxShadow: '0 0 16px rgba(255,184,0,0.25)' }
-              : { background: '#1a1a1a', border: '2px solid rgba(255,184,0,0.15)' }
-            }
+        {orderTypes.filter(t => t.enabled).map(t => (
+          <button
+            key={t.key}
+            onClick={() => onChange(t.key)}
+            className={`flex flex-col items-center gap-2 py-5 px-3 rounded-2xl border-2 transition-all ${
+              value === t.key
+                ? 'border-[#FFB800] bg-[#FFF7E0]'
+                : 'border-[#E5E7EB] bg-white hover:border-[#FFB800]/40'
+            }`}
           >
             <span className="text-3xl">{t.icon}</span>
-            <span className={`font-black text-sm ${value === t.key ? 'text-brand-gold' : 'text-white'}`}>{t.label}</span>
-            <span className="text-white/40 text-xs text-center leading-tight">{t.desc}</span>
+            <span className={`font-bold text-sm ${value === t.key ? 'text-[#111111]' : 'text-[#6B7280]'}`}>
+              {t.label}
+            </span>
           </button>
         ))}
       </div>
@@ -74,94 +50,139 @@ function StepOrderType({ value, onChange }) {
   )
 }
 
-function StepDetails({ orderType, zone, setZone, tableNumber, setTableNumber }) {
-  if (orderType === 'mesa') return (
-    <div>
-      <SectionTitle>¿En qué mesa estás?</SectionTitle>
-      <DarkInput value={tableNumber} onChange={e => setTableNumber(e.target.value)}
-        placeholder="Ej: Mesa 4, Terraza 2..." />
-    </div>
-  )
+// ── Step: Datos del cliente ───────────────────────────────────────────────────
+function StepInfo({ orderType, zone, setZone, deliveryZones, form, setForm }) {
+  const [locating, setLocating] = useState(false)
+  const [locError, setLocError] = useState('')
+  const needsDelivery = orderType === 'domicilio'
 
-  if (orderType === 'domicilio') return (
-    <div>
-      <SectionTitle>Selecciona tu zona de entrega</SectionTitle>
-      <div className="space-y-2">
-        {DELIVERY_ZONES.map(z => (
-          <button key={z.id} onClick={() => setZone(z)}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all text-left"
-            style={zone?.id === z.id
-              ? { background: 'rgba(255,184,0,0.12)', border: '2px solid #FFB800' }
-              : { background: '#1a1a1a', border: '2px solid rgba(255,184,0,0.15)' }
-            }
-          >
-            <span className="text-2xl">{z.emoji}</span>
-            <div className="flex-1 min-w-0">
-              <p className={`font-black text-sm ${zone?.id === z.id ? 'text-brand-gold' : 'text-white'}`}>{z.name}</p>
-              <p className="text-white/40 text-xs truncate">{z.description}</p>
+  async function getLocation() {
+    if (!navigator.geolocation) return setLocError('Tu navegador no soporta geolocalización.')
+    setLocating(true); setLocError('')
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude, longitude } = pos.coords
+        const url = `https://maps.google.com/?q=${latitude},${longitude}`
+        setForm(p => ({ ...p, mapUrl: url, lat: latitude, lng: longitude }))
+        setLocating(false)
+      },
+      () => { setLocError('No se pudo obtener la ubicación.'); setLocating(false) }
+    )
+  }
+
+  const isDomicilio = orderType === 'domicilio'
+
+  return (
+    <div className="space-y-5">
+      <h3 className="text-base font-bold text-[#111111]">Tus datos</h3>
+
+      <LField label="Nombre" required>
+        <input className="field" placeholder="Juan García"
+          value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+      </LField>
+
+      {isDomicilio && (
+        <LField label="Teléfono" required>
+          <input className="field" type="tel" placeholder="773 123 4567"
+            value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+        </LField>
+      )}
+
+      {isDomicilio && (
+        <>
+          {/* Zone */}
+          <div>
+            <p className="text-sm font-bold text-[#111111] mb-2">
+              Zona de entrega <span className="text-[#E8001C]">*</span>
+            </p>
+            <div className="space-y-2">
+              {deliveryZones.map(z => (
+                <button key={z.id} onClick={() => setZone(z)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 text-left transition-all ${
+                    zone?.id === z.id
+                      ? 'border-[#FFB800] bg-[#FFF7E0]'
+                      : 'border-[#E5E7EB] bg-white hover:border-[#FFB800]/40'
+                  }`}
+                >
+                  <span className="text-xl">{z.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm text-[#111111]">{z.name}</p>
+                    <p className="text-xs text-[#6B7280] truncate">{z.description}</p>
+                  </div>
+                  <span className="font-bold text-sm text-[#111111] whitespace-nowrap">
+                    +${z.cost.toFixed(2)}
+                  </span>
+                </button>
+              ))}
             </div>
-            <span className="font-black text-sm text-brand-gold whitespace-nowrap">+${z.cost.toFixed(2)}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
+          </div>
 
-  const t = ORDER_TYPES.find(t => t.key === orderType)
-  return (
-    <div className="flex flex-col items-center justify-center py-12 gap-4">
-      <span className="text-6xl">{t?.icon}</span>
-      <p className="font-black text-white text-lg">{t?.label}</p>
-      <p className="text-white/40 text-sm text-center">{t?.desc}</p>
-      <p className="text-brand-gold text-sm font-bold">¡Listo! Continúa →</p>
+          {/* Address */}
+          <LField label="Dirección completa" required>
+            <textarea className="field resize-none" rows={2}
+              placeholder="Calle, número, colonia…"
+              value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} />
+          </LField>
+
+          {/* Geolocation */}
+          <div>
+            <p className="text-sm font-bold text-[#111111] mb-2">Ubicación en mapa (opcional)</p>
+            {form.mapUrl ? (
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-green-50 border border-green-200">
+                <span className="text-green-600 text-lg">📍</span>
+                <a href={form.mapUrl} target="_blank" rel="noopener noreferrer"
+                  className="text-sm text-green-700 font-bold hover:underline flex-1 truncate">
+                  Ver en Google Maps
+                </a>
+                <button onClick={() => setForm(p => ({ ...p, mapUrl: '', lat: null, lng: null }))}
+                  className="text-xs text-[#6B7280] hover:text-[#E8001C]">✕</button>
+              </div>
+            ) : (
+              <>
+                <button onClick={getLocation} disabled={locating}
+                  className="w-full py-2.5 rounded-xl border-2 border-dashed border-[#E5E7EB] text-sm text-[#6B7280] font-bold hover:border-[#FFB800] hover:text-[#111111] transition-all disabled:opacity-50">
+                  {locating ? 'Obteniendo ubicación…' : '📍 Capturar mi ubicación actual'}
+                </button>
+                {locError && <p className="text-xs text-[#E8001C] mt-1">{locError}</p>}
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* General order note */}
+      <LField label="Nota del pedido">
+        <input className="field" placeholder="Sin picante, alérgico a…"
+          value={form.note} onChange={e => setForm(p => ({ ...p, note: e.target.value }))} />
+      </LField>
     </div>
   )
 }
 
-function StepCustomerInfo({ orderType, form, setForm }) {
-  const fields = [
-    { key: 'name',    label: 'Nombre completo',     placeholder: 'Juan García',         required: true },
-    { key: 'phone',   label: 'Teléfono',             placeholder: '773 123 4567',        required: true, type: 'tel' },
-    ...(orderType === 'domicilio' ? [{ key: 'address', label: 'Dirección completa', placeholder: 'Calle, número, colonia…', required: true, area: true }] : []),
-    { key: 'note',    label: 'Nota del pedido',      placeholder: 'Sin picante, alérgico a…', area: true },
-  ]
-  return (
-    <div className="space-y-4">
-      <SectionTitle>Tus datos</SectionTitle>
-      {fields.map(f => (
-        <div key={f.key}>
-          <label className="block text-xs font-bold text-brand-gold uppercase tracking-wider mb-1.5">
-            {f.label}{f.required && <span className="text-brand-red ml-1">*</span>}
-          </label>
-          {f.area
-            ? <DarkTextarea value={form[f.key]||''} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.placeholder} rows={2} />
-            : <DarkInput type={f.type||'text'} value={form[f.key]||''} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.placeholder} />
-          }
-        </div>
-      ))}
-    </div>
-  )
-}
-
+// ── Step: Pago ─────────────────────────────────────────────────────────────────
 function StepPayment({ value, onChange }) {
   return (
     <div>
-      <SectionTitle>¿Cómo vas a pagar?</SectionTitle>
+      <h3 className="text-base font-bold text-[#111111] mb-4">¿Cómo vas a pagar?</h3>
       <div className="space-y-3">
         {PAYMENT_METHODS.map(m => (
           <button key={m.key} onClick={() => onChange(m.key)}
-            className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all text-left"
-            style={value === m.key
-              ? { background: 'rgba(255,184,0,0.12)', border: '2px solid #FFB800', boxShadow: '0 0 16px rgba(255,184,0,0.2)' }
-              : { background: '#1a1a1a', border: '2px solid rgba(255,184,0,0.15)' }
-            }
+            className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 text-left transition-all ${
+              value === m.key
+                ? 'border-[#FFB800] bg-[#FFF7E0]'
+                : 'border-[#E5E7EB] bg-white hover:border-[#FFB800]/40'
+            }`}
           >
             <span className="text-3xl">{m.icon}</span>
-            <div>
-              <p className={`font-black text-sm ${value === m.key ? 'text-brand-gold' : 'text-white'}`}>{m.label}</p>
-              <p className="text-white/40 text-xs">{m.desc}</p>
+            <div className="flex-1">
+              <p className="font-bold text-sm text-[#111111]">{m.label}</p>
+              <p className="text-xs text-[#6B7280]">{m.desc}</p>
             </div>
-            {value === m.key && <span className="ml-auto text-brand-gold text-xl font-black">✓</span>}
+            {value === m.key && (
+              <span className="w-5 h-5 rounded-full bg-[#FFB800] flex items-center justify-center text-[10px] font-bold text-[#111111]">
+                ✓
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -169,69 +190,76 @@ function StepPayment({ value, onChange }) {
   )
 }
 
-function StepSummary({ cart, orderType, zone, tableNumber, customerInfo, paymentMethod, total, onConfirm, loading }) {
-  const ot = ORDER_TYPES.find(t => t.key === orderType)
-  const pm = PAYMENT_METHODS.find(m => m.key === paymentMethod)
+// ── Step: Resumen ─────────────────────────────────────────────────────────────
+function StepSummary({ cart, orderType, zone, form, paymentMethod, total, onConfirm, loading }) {
   const dc = zone?.cost ?? 0
+  const pm = PAYMENT_METHODS.find(m => m.key === paymentMethod)
+
+  const metaRows = [
+    ['Cliente',    form.name],
+    form.phone && ['Teléfono', form.phone],
+    orderType === 'domicilio' && ['Dirección', form.address],
+    orderType === 'domicilio' && zone && ['Zona', `${zone.name} (+$${dc.toFixed(2)})`],
+    ['Pago', pm ? `${pm.icon} ${pm.label}` : '–'],
+    form.note && ['Nota', form.note],
+  ].filter(Boolean)
 
   return (
     <div className="space-y-4">
-      <SectionTitle>Resumen del pedido</SectionTitle>
+      <h3 className="text-base font-bold text-[#111111]">Resumen del pedido</h3>
 
-      {/* Productos */}
-      <div className="rounded-2xl p-4 space-y-2" style={panel}>
-        {cart.map(item => (
-          <div key={item.cartKey}>
+      {/* Products */}
+      <div className="rounded-2xl border border-[#E5E7EB] overflow-hidden">
+        {cart.map((item, idx) => (
+          <div key={item.cartKey}
+            className={`px-4 py-3 ${idx < cart.length - 1 ? 'border-b border-[#E5E7EB]' : ''}`}>
             <div className="flex justify-between text-sm">
-              <span className="text-white/80">{item.name} <span className="text-white/40">×{item.qty}</span></span>
-              <span className="text-white font-bold">${(item.price*item.qty).toFixed(2)}</span>
+              <span className="text-[#111111] font-medium">{item.name} <span className="text-[#6B7280]">×{item.qty}</span></span>
+              <span className="font-bold text-[#111111]">${(item.price * item.qty).toFixed(2)}</span>
             </div>
-            {item.note && <p className="text-xs text-black font-semibold bg-brand-gold rounded px-1.5 ml-2 mt-0.5 inline-block">✏️ {item.note}</p>}
+            {item.note && (
+              <p className="text-xs text-[#111111] font-medium bg-[#FFF7E0] border border-[#FFB800]/30 rounded px-2 py-0.5 mt-1 inline-block">
+                ✏️ {item.note}
+              </p>
+            )}
           </div>
         ))}
-        <div style={{ borderTop: '1px solid rgba(255,184,0,0.15)', paddingTop: '8px', marginTop: '8px' }}>
+        <div className="px-4 py-3 bg-[#F9FAFB] border-t border-[#E5E7EB]">
           {dc > 0 && (
-            <div className="flex justify-between text-xs text-white/40 mb-1">
-              <span>Envío ({zone?.name})</span><span>+${dc.toFixed(2)}</span>
+            <div className="flex justify-between text-xs text-[#6B7280] mb-1">
+              <span>Envío ({zone?.name})</span>
+              <span>+${dc.toFixed(2)}</span>
             </div>
           )}
-          <div className="flex justify-between font-black text-base">
-            <span className="text-white">Total</span>
-            <span className="text-brand-gold">${total.toFixed(2)}</span>
+          <div className="flex justify-between font-bold text-base">
+            <span className="text-[#111111]">Total</span>
+            <span className="text-[#111111]">${total.toFixed(2)}</span>
           </div>
         </div>
       </div>
 
-      {/* Detalles */}
-      <div className="rounded-2xl p-4 space-y-2 text-sm" style={panel}>
-        {[
-          ['Cliente',   customerInfo.name],
-          ['Teléfono',  customerInfo.phone],
-          ['Tipo',      `${ot?.icon} ${ot?.label}`],
-          orderType === 'domicilio' && ['Dirección', customerInfo.address],
-          orderType === 'mesa'      && ['Mesa',      tableNumber],
-          ['Pago',      `${pm?.icon} ${pm?.label}`],
-          customerInfo.note && ['Nota', customerInfo.note],
-        ].filter(Boolean).map(([k,v]) => (
-          <div key={k} className="flex justify-between gap-4">
-            <span className="text-white/40 shrink-0">{k}</span>
-            <span className="text-white text-right">{v}</span>
+      {/* Meta details */}
+      <div className="rounded-2xl border border-[#E5E7EB] overflow-hidden">
+        {metaRows.map(([k, v], i) => (
+          <div key={k}
+            className={`flex justify-between gap-4 px-4 py-2.5 text-sm ${i < metaRows.length - 1 ? 'border-b border-[#E5E7EB]' : ''}`}>
+            <span className="text-[#6B7280] shrink-0">{k}</span>
+            <span className="text-[#111111] text-right">{v}</span>
           </div>
         ))}
       </div>
 
-      {/* WhatsApp aviso */}
-      <div className="rounded-2xl px-4 py-3 flex gap-3 items-start"
-           style={{ background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.3)' }}>
+      {/* WhatsApp notice */}
+      <div className="rounded-2xl px-4 py-3 flex gap-3 items-start bg-green-50 border border-green-200">
         <span className="text-xl mt-0.5">💬</span>
-        <p className="text-xs text-green-300 leading-relaxed">
-          Al confirmar se registra el pedido y se abre <strong>WhatsApp</strong> con el resumen listo para enviar.
+        <p className="text-xs text-green-700 leading-relaxed">
+          Al confirmar se guarda el pedido y se abre <strong>WhatsApp</strong> con el resumen listo para enviar.
         </p>
       </div>
 
       <button onClick={onConfirm} disabled={loading}
-        className="w-full font-black py-4 rounded-2xl transition-all text-base disabled:opacity-40"
-        style={{ background: '#25D366', color: '#fff', boxShadow: loading ? 'none' : '0 0 20px rgba(37,211,102,0.4)' }}
+        className="w-full font-bold py-4 rounded-2xl text-white text-base transition-all disabled:opacity-40"
+        style={{ background: '#25D366', boxShadow: loading ? 'none' : '0 4px 16px rgba(37,211,102,0.35)' }}
       >
         {loading ? 'Enviando…' : '✅ Confirmar y abrir WhatsApp'}
       </button>
@@ -239,19 +267,21 @@ function StepSummary({ cart, orderType, zone, tableNumber, customerInfo, payment
   )
 }
 
-// ── Componente principal ───────────────────────────────────────────────────────
-
-export default function CheckoutFlow({ open, onClose }) {
+// ── Main component ────────────────────────────────────────────────────────────
+export default function CheckoutFlow({ open, onClose, preselectedOrderType }) {
   const { cart, subtotal, clearCart } = useCart()
   const { createOrder } = useOrders()
+  const { config } = useRestaurantConfig()
 
-  const [step, setStep]             = useState(0)
-  const [orderType, setOrderType]   = useState(null)
-  const [zone, setZone]             = useState(null)
-  const [tableNumber, setTableNumber] = useState('')
-  const [customerInfo, setCustomerInfo] = useState({ name:'', phone:'', address:'', note:'' })
-  const [paymentMethod, setPaymentMethod] = useState(null)
-  const [loading, setLoading]       = useState(false)
+  const [step, setStep]         = useState(0)
+  const [orderType, setOrderType] = useState(preselectedOrderType ?? null)
+  const [zone, setZone]         = useState(null)
+  const [form, setForm]         = useState({ name: '', phone: '', address: '', note: '', mapUrl: '', lat: null, lng: null })
+  const [payment, setPayment]   = useState(null)
+  const [loading, setLoading]   = useState(false)
+
+  // If caller already provided the order type, skip step 0
+  const startStep = preselectedOrderType ? 1 : 0
 
   const deliveryCost = orderType === 'domicilio' ? (zone?.cost ?? 0) : 0
   const total        = subtotal + deliveryCost
@@ -259,19 +289,20 @@ export default function CheckoutFlow({ open, onClose }) {
   function canAdvance() {
     if (step === 0) return !!orderType
     if (step === 1) {
-      if (orderType === 'domicilio') return !!zone
-      if (orderType === 'mesa')      return tableNumber.trim().length > 0
+      if (!form.name.trim()) return false
+      if (orderType === 'domicilio') return !!zone && form.address.trim().length > 0 && form.phone.trim().length > 0
       return true
     }
-    if (step === 2) return customerInfo.name.trim() && customerInfo.phone.trim() &&
-      (orderType !== 'domicilio' || customerInfo.address.trim())
-    if (step === 3) return !!paymentMethod
+    if (step === 2) return !!payment
     return true
   }
 
   function handleClose() {
-    setStep(0); setOrderType(null); setZone(null); setTableNumber('')
-    setCustomerInfo({ name:'', phone:'', address:'', note:'' }); setPaymentMethod(null)
+    setStep(startStep)
+    setOrderType(preselectedOrderType ?? null)
+    setZone(null)
+    setForm({ name: '', phone: '', address: '', note: '', mapUrl: '', lat: null, lng: null })
+    setPayment(null)
     onClose()
   }
 
@@ -279,96 +310,147 @@ export default function CheckoutFlow({ open, onClose }) {
     setLoading(true)
     try {
       await createOrder({
-        customerName: customerInfo.name, phone: customerInfo.phone,
-        address: customerInfo.address || '', note: customerInfo.note || '',
-        tableNumber: tableNumber || '', orderType,
-        zone: zone ? { id:zone.id, name:zone.name, cost:zone.cost } : null,
-        deliveryCost, paymentMethod,
-        items: cart.map(i => ({ id:i.id, name:i.name, price:i.price, qty:i.qty, note:i.note||'' })),
+        customerName: form.name,
+        phone:        form.phone || '',
+        address:      form.address || '',
+        mapUrl:       form.mapUrl || '',
+        note:         form.note || '',
+        orderType,
+        zone:         zone ? { id: zone.id, name: zone.name, cost: zone.cost } : null,
+        deliveryCost,
+        paymentMethod: payment,
+        items: cart.map(i => ({
+          id:    i.id,
+          name:  i.name,
+          price: i.price,
+          qty:   i.qty,
+          note:  i.note || '',
+          selectedCustomizations: i.selectedCustomizations || {},
+        })),
         total,
       })
       openWhatsApp({
-        customerName: customerInfo.name, phone: customerInfo.phone,
-        items: cart, orderType, zone, deliveryCost,
-        address: customerInfo.address, tableNumber, paymentMethod, total, note: customerInfo.note,
+        customerName: form.name,
+        phone:        form.phone,
+        items:        cart,
+        orderType,
+        zone,
+        deliveryCost,
+        address:      form.address,
+        mapUrl:       form.mapUrl,
+        tableNumber:  '',
+        paymentMethod: payment,
+        total,
+        note:         form.note,
       })
-      clearCart(); handleClose()
-    } finally { setLoading(false) }
+      clearCart()
+      handleClose()
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (!open) return null
 
-  const steps = [
-    <StepOrderType key="type" value={orderType} onChange={v => { setOrderType(v); setZone(null) }} />,
-    <StepDetails   key="det"  orderType={orderType} zone={zone} setZone={setZone} tableNumber={tableNumber} setTableNumber={setTableNumber} />,
-    <StepCustomerInfo key="info" orderType={orderType} form={customerInfo} setForm={setCustomerInfo} />,
-    <StepPayment   key="pay"  value={paymentMethod} onChange={setPaymentMethod} />,
-    <StepSummary   key="sum"  cart={cart} orderType={orderType} zone={zone} tableNumber={tableNumber}
-      customerInfo={customerInfo} paymentMethod={paymentMethod} total={total} onConfirm={handleConfirm} loading={loading} />,
+  const STEPS = [
+    // Step 0: order type (only if not preselected)
+    ...(!preselectedOrderType ? [{
+      label: 'Tipo',
+      content: <StepOrderType
+        orderTypes={config.orderTypes}
+        value={orderType}
+        onChange={v => { setOrderType(v); setZone(null) }}
+      />,
+    }] : []),
+    // Step 1: customer info
+    {
+      label: 'Datos',
+      content: <StepInfo
+        orderType={orderType}
+        zone={zone} setZone={setZone}
+        deliveryZones={config.deliveryZones}
+        form={form} setForm={setForm}
+      />,
+    },
+    // Step 2: payment
+    { label: 'Pago', content: <StepPayment value={payment} onChange={setPayment} /> },
+    // Step 3: summary
+    {
+      label: 'Resumen',
+      content: <StepSummary
+        cart={cart} orderType={orderType} zone={zone} form={form}
+        paymentMethod={payment} total={total} onConfirm={handleConfirm} loading={loading}
+      />,
+    },
   ]
 
-  return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl flex flex-col
-                      max-h-[92dvh] sm:max-h-[85vh] overflow-hidden"
-           style={{ background: '#0a0a0a', border: '1px solid rgba(255,184,0,0.25)' }}>
+  const isLastStep  = step === STEPS.length - 1
+  const totalSteps  = STEPS.length
 
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div
+        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl flex flex-col bg-white
+                   max-h-[92dvh] sm:max-h-[88vh] overflow-hidden shadow-float"
+      >
         {/* Header */}
-        <div className="px-5 pt-5 pb-3 shrink-0"
-             style={{ borderBottom: '1px solid rgba(255,184,0,0.15)' }}>
+        <div className="px-5 pt-5 pb-3 border-b border-[#E5E7EB] shrink-0">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-lg font-black text-white">Finalizar pedido</h2>
-              <p className="text-xs text-white/40">El Rincón de Las Delicias</p>
+              <h2 className="text-lg font-bold text-[#111111]">Finalizar pedido</h2>
+              <p className="text-xs text-[#6B7280]">El Rincón de Las Delicias</p>
             </div>
             <button onClick={handleClose}
-                    className="text-white/40 hover:text-brand-gold text-3xl leading-none transition-colors">
-              &times;
+              className="w-8 h-8 rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] flex items-center justify-center text-[#6B7280] text-lg transition-colors">
+              ×
             </button>
           </div>
 
-          {/* Barra de progreso */}
+          {/* Progress bar */}
           <div className="flex gap-1.5">
-            {STEP_LABELS.map((label, i) => (
+            {STEPS.map((s, i) => (
               <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <div className="h-1 w-full rounded-full transition-all duration-300"
-                     style={{ background: i <= step ? '#FFB800' : 'rgba(255,255,255,0.1)' }} />
-                <span className="text-[10px] font-bold"
-                      style={{ color: i === step ? '#FFB800' : i < step ? 'rgba(255,184,0,0.5)' : 'rgba(255,255,255,0.2)' }}>
-                  {label}
+                <div className={`h-1 w-full rounded-full transition-all duration-300 ${
+                  i <= step ? 'bg-[#FFB800]' : 'bg-[#E5E7EB]'
+                }`} />
+                <span className={`text-[10px] font-bold ${
+                  i === step ? 'text-[#FFB800]' : i < step ? 'text-[#FFB800]/60' : 'text-[#6B7280]'
+                }`}>
+                  {s.label}
                 </span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Contenido */}
-        <div className="flex-1 overflow-y-auto px-5 py-5">{steps[step]}</div>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          {STEPS[step]?.content}
+        </div>
 
-        {/* Navegación */}
-        {step < 4 && (
-          <div className="px-5 py-4 shrink-0 flex gap-3"
-               style={{ borderTop: '1px solid rgba(255,184,0,0.15)' }}>
-            {step > 0 && (
-              <button onClick={() => setStep(s=>s-1)}
-                      className="flex-1 font-bold py-3 rounded-2xl text-white/60 hover:text-white transition-colors"
-                      style={{ border: '1px solid rgba(255,255,255,0.15)' }}>
+        {/* Navigation */}
+        {!isLastStep && (
+          <div className="px-5 py-4 border-t border-[#E5E7EB] flex gap-3 shrink-0">
+            {step > startStep && (
+              <button onClick={() => setStep(s => s - 1)}
+                className="flex-1 font-bold py-3 rounded-2xl border border-[#E5E7EB] text-[#6B7280] hover:text-[#111111] transition-colors">
                 ← Atrás
               </button>
             )}
-            <button onClick={() => setStep(s=>s+1)} disabled={!canAdvance()}
-                    className="flex-[2] font-black py-3 rounded-2xl transition-all"
-                    style={canAdvance()
-                      ? { background: '#FFB800', color: '#000', boxShadow: '0 0 16px rgba(255,184,0,0.35)' }
-                      : { background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.25)' }
-                    }>
-              {step === 3 ? 'Ver resumen →' : 'Continuar →'}
+            <button onClick={() => setStep(s => s + 1)} disabled={!canAdvance()}
+              className={`flex-[2] font-bold py-3 rounded-2xl transition-all ${
+                canAdvance()
+                  ? 'bg-[#FFB800] text-[#111111] shadow-float hover:bg-[#e6a600]'
+                  : 'bg-[#F3F4F6] text-[#6B7280]'
+              }`}>
+              Continuar →
             </button>
           </div>
         )}
-        {step === 4 && (
+        {isLastStep && (
           <div className="px-5 pb-4 shrink-0">
-            <button onClick={() => setStep(3)} className="w-full text-sm text-white/30 hover:text-white/60 py-2">
+            <button onClick={() => setStep(s => s - 1)}
+              className="w-full text-sm text-[#6B7280] hover:text-[#111111] py-2">
               ← Modificar pedido
             </button>
           </div>

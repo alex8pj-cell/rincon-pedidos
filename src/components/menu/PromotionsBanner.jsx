@@ -6,28 +6,27 @@ export default function PromotionsBanner() {
   if (loading || promotions.length === 0) return null
 
   return (
-    <section className="mb-1">
+    <section className="px-4 pt-4">
       <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
         {promotions.map(promo => {
-          const isRed  = promo.color === 'red'
-          const bg     = isRed ? 'bg-brand-red'  : 'bg-brand-gold'
-          const text   = isRed ? 'text-white'     : 'text-black'
-          const sub    = isRed ? 'text-red-100'   : 'text-black/60'
+          const isRed = promo.color === 'red'
           return (
             <div
               key={promo.id}
-              className={`${bg} ${text} shrink-0 rounded-2xl px-5 py-4 min-w-[220px] max-w-[260px] relative overflow-hidden`}
+              className={`shrink-0 rounded-2xl px-5 py-4 min-w-[200px] max-w-[240px] relative overflow-hidden ${
+                isRed ? 'bg-[#E8001C] text-white' : 'bg-[#FFB800] text-[#111111]'
+              }`}
             >
-              {/* Círculo decorativo */}
-              <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-black/10" />
-              <div className="absolute -right-1 -bottom-1 w-10 h-10 rounded-full bg-black/10" />
+              {/* Decorative circles */}
+              <div className="absolute -right-3 -bottom-3 w-16 h-16 rounded-full bg-black/10" />
+              <div className="absolute -right-1 -bottom-1 w-8 h-8 rounded-full bg-black/10" />
 
               {promo.badge && (
                 <span className="text-2xl block mb-1">{promo.badge}</span>
               )}
-              <p className="font-black text-base leading-tight relative z-10">{promo.title}</p>
+              <p className="font-bold text-[15px] leading-tight relative z-10">{promo.title}</p>
               {promo.description && (
-                <p className={`text-xs mt-1 leading-snug relative z-10 ${sub}`}>
+                <p className={`text-xs mt-1 leading-snug relative z-10 ${isRed ? 'text-red-100' : 'text-black/60'}`}>
                   {promo.description}
                 </p>
               )}

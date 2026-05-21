@@ -1,5 +1,3 @@
-// Lógica pura del carrito: contexto, reducer y hook.
-// Separado del CartProvider (componente) para satisfacer React Fast Refresh.
 import { createContext, useContext } from 'react'
 
 export const EMPTY_CART = {
@@ -10,20 +8,27 @@ export const EMPTY_CART = {
 
 export const CartContext = createContext(EMPTY_CART)
 
-export function makeKey(id, note = '') {
-  return `${id}__${note.trim().toLowerCase()}`
+// Key única por ítem + nota + personalizaciones seleccionadas
+export function makeKey(id, note = '', customizations = {}) {
+  return `${id}__${note.trim().toLowerCase()}__${JSON.stringify(customizations)}`
 }
 
 export function cartReducer(state, action) {
   switch (action.type) {
     case 'ADD_ITEM': {
-      const { item, note = '' } = action
-      const key = makeKey(item.id, note)
+      const { item, note = '', selectedCustomizations = {} } = action
+      const key = makeKey(item.id, note, selectedCustomizations)
       const existing = state.find(i => i.cartKey === key)
       if (existing) {
         return state.map(i => i.cartKey === key ? { ...i, qty: i.qty + 1 } : i)
       }
-      return [...state, { ...item, note: note.trim(), cartKey: key, qty: 1 }]
+      return [...state, {
+        ...item,
+        note: note.trim(),
+        selectedCustomizations,
+        cartKey: key,
+        qty: 1,
+      }]
     }
     case 'REMOVE_ITEM':
       return state.filter(i => i.cartKey !== action.cartKey)
@@ -31,12 +36,6 @@ export function cartReducer(state, action) {
       return state
         .map(i => i.cartKey === action.cartKey ? { ...i, qty: action.qty } : i)
         .filter(i => i.qty > 0)
-    case 'UPDATE_NOTE':
-      return state.map(i =>
-        i.cartKey === action.cartKey
-          ? { ...i, note: action.note, cartKey: makeKey(i.id, action.note) }
-          : i
-      )
     case 'CLEAR_CART':
       return []
     default:
@@ -44,7 +43,6 @@ export function cartReducer(state, action) {
   }
 }
 
-// Hook — solo exporta una función, no un componente → Fast Refresh OK
 export function useCart() {
   return useContext(CartContext)
 }

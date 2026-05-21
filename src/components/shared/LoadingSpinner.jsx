@@ -1,8 +1,10 @@
-export default function LoadingSpinner({ size = 'md' }) {
-  const sizes = { sm: 'h-5 w-5', md: 'h-10 w-10', lg: 'h-16 w-16' }
+export default function LoadingSpinner({ size = 'md', className = '' }) {
+  const sizes = { sm: 'w-5 h-5', md: 'w-8 h-8', lg: 'w-12 h-12' }
   return (
-    <div className="flex justify-center items-center p-8">
-      <div className={`animate-spin rounded-full border-4 border-brand-dark border-t-brand-gold ${sizes[size]}`} />
+    <div className={`flex items-center justify-center p-8 ${className}`}>
+      <div
+        className={`${sizes[size]} rounded-full border-2 border-[#E5E7EB] border-t-[#FFB800] animate-spin`}
+      />
     </div>
   )
 }

@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-black:  #000000;
-  --color-brand-gold:   #FFB800;
-  --color-brand-red:    #E8001C;
-  --color-brand-dark:   #1a1a1a;
-  --color-brand-darker: #111111;
-  --color-brand-border: rgba(255,184,0,0.25);
+  --color-gold:    #FFB800;
+  --color-red:     #E8001C;
+  --color-dark:    #111111;
+  --color-muted:   #6B7280;
+  --color-surface: #F9FAFB;
+  --color-border:  #E5E7EB;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -14,19 +14,28 @@
 body {
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
-  background: #000;
-  color: #fff;
+  background: #fff;
+  color: #111;
 }
 
-/* scrollbar invisible en filtros horizontales */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Brillo en hover de tarjetas */
-.card-hover {
-  transition: border-color .2s, box-shadow .2s;
+/* Inputs consistentes */
+.field {
+  width: 100%;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #111;
+  background: #fff;
+  outline: none;
+  transition: border-color .15s;
 }
-.card-hover:hover {
-  border-color: rgba(255,184,0,0.6) !important;
-  box-shadow: 0 0 0 1px rgba(255,184,0,0.15), 0 4px 24px rgba(0,0,0,.6);
-}
+.field:focus { border-color: #FFB800; }
+.field::placeholder { color: #9CA3AF; }
+
+/* Sombra estándar */
+.shadow-card { box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04); }
+.shadow-float { box-shadow: 0 4px 16px rgba(0,0,0,.12); }

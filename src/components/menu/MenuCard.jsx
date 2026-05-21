@@ -3,56 +3,74 @@ import { useCart } from '../../context/cartStore'
 import CustomizationModal from './CustomizationModal'
 
 export default function MenuCard({ item }) {
-  const { addItem, cart } = useCart()
-  const [modalOpen, setModalOpen] = useState(false)
+  const { cart } = useCart()
+  const [open, setOpen] = useState(false)
 
   const totalInCart = cart.filter(i => i.id === item.id).reduce((s, i) => s + i.qty, 0)
+  const unavailable = item.available === false
 
   return (
     <>
       <div
-        className="card-hover bg-brand-dark rounded-2xl overflow-hidden flex flex-col cursor-pointer"
-        style={{ border: '1px solid rgba(255,184,0,0.2)' }}
-        onClick={() => setModalOpen(true)}
+        className={`flex items-start gap-3 p-4 bg-white border border-[#E5E7EB] rounded-2xl shadow-card hover:shadow-float transition-shadow ${unavailable ? 'opacity-60' : ''}`}
+        onClick={() => !unavailable && setOpen(true)}
+        style={{ cursor: unavailable ? 'default' : 'pointer' }}
       >
-        {item.imageUrl ? (
-          <img src={item.imageUrl} alt={item.name} className="w-full h-44 object-cover" />
-        ) : (
-          <div className="w-full h-28 flex items-center justify-center text-5xl"
-               style={{ background: '#111' }}>🍽️</div>
-        )}
-
-        <div className="p-4 flex flex-col flex-1">
-          <div className="flex justify-between items-start gap-2 mb-1 flex-1">
-            <h3 className="font-bold text-white text-sm leading-tight">{item.name}</h3>
-            <span className="text-brand-gold font-black text-sm whitespace-nowrap">
-              ${item.price.toFixed(2)}
-            </span>
-          </div>
-
+        {/* Info */}
+        <div className="flex-1 min-w-0 pr-1">
+          <p className="font-bold text-[#111111] text-[15px] leading-snug">{item.name}</p>
           {item.description && (
-            <p className="text-white/50 text-xs mb-3 line-clamp-2">{item.description}</p>
+            <p className="text-[#6B7280] text-[13px] mt-1 leading-snug line-clamp-2">
+              {item.description}
+            </p>
+          )}
+          <div className="flex items-center gap-2 mt-2">
+            <p className="font-bold text-[#111111] text-[15px]">
+              ${Number(item.price).toFixed(2)}
+            </p>
+            {totalInCart > 0 && (
+              <span className="text-[11px] bg-[#FFF7E0] text-[#FFB800] border border-[#FFB800]/30 rounded-full px-2 py-0.5 font-bold">
+                ×{totalInCart} en carrito
+              </span>
+            )}
+            {unavailable && (
+              <span className="text-[11px] bg-[#F3F4F6] text-[#6B7280] rounded-full px-2 py-0.5 font-medium">
+                Agotado
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Photo + "+" button */}
+        <div className="relative shrink-0">
+          {item.imageUrl ? (
+            <img
+              src={item.imageUrl}
+              alt={item.name}
+              className="w-24 h-24 rounded-xl object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-24 h-24 rounded-xl bg-[#F3F4F6] flex items-center justify-center text-3xl select-none">
+              🍽️
+            </div>
           )}
 
-          <button
-            onClick={e => { e.stopPropagation(); setModalOpen(true) }}
-            className={`mt-auto w-full py-2.5 rounded-xl text-sm font-black transition-all ${
-              totalInCart > 0
-                ? 'bg-brand-red text-white shadow-[0_0_12px_rgba(232,0,28,0.4)]'
-                : 'bg-brand-gold text-black hover:shadow-[0_0_16px_rgba(255,184,0,0.5)]'
-            }`}
-          >
-            {totalInCart > 0 ? `✓ En carrito (${totalInCart})` : '＋ Agregar'}
-          </button>
+          {!unavailable && (
+            <button
+              onClick={e => { e.stopPropagation(); setOpen(true) }}
+              className="absolute -bottom-2.5 -right-2.5 w-9 h-9 rounded-full bg-[#FFB800] text-[#111111] text-xl font-bold flex items-center justify-center shadow-float active:scale-95 transition-transform"
+              aria-label={`Agregar ${item.name}`}
+            >
+              +
+            </button>
+          )}
         </div>
       </div>
 
-      <CustomizationModal
-        item={item}
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onConfirm={(item, note) => addItem(item, note)}
-      />
+      {open && (
+        <CustomizationModal item={item} onClose={() => setOpen(false)} />
+      )}
     </>
   )
 }
